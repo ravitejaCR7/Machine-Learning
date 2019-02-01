@@ -1,0 +1,155 @@
+import pandas as pd
+import numpy as np
+import cvxopt as cpt
+import math
+
+Train_data = pd.read_csv('park_train.data',header = None)
+Test_data = pd.read_csv('park_test.data',header = None)
+Validation_data = pd.read_csv('park_validation.data',header = None)
+
+#setting 0 to -1 in the target
+Train_data.loc[Train_data[0] == 0, 0] = -1
+Test_data.loc[Test_data[0] == 0, 0] = -1
+Validation_data.loc[Validation_data[0] == 0, 0] = -1
+
+m = len(Train_data)  #number of rows
+n = len(Train_data.columns)-1   #number of columns
+
+
+def split_data(data):
+    x = np.array(data.iloc[:,1:23])
+    y = np.array(data.iloc[:,0])
+    return (x, y)
+
+#Training
+Train_x, Train_y = split_data(Train_data)
+#validation
+valid_x, valid_y = split_data(Validation_data)
+#Testing
+Test_x, Test_y = split_data(Test_data)
+
+def guassianKernel(x, z, sigma):    #compute Vector Distance using Guassian Kernel  exp((-||x-z||^2)/2*sigma^2)
+    dist = 0
+    for i in range(n):
+        dist = dist + (x[i]-z[i])**2
+    k = (-1 * dist)/(2*(sigma**2))
+    k = math.exp(k)
+    return k
+    
+def computeAccuracy(data, w, b):#Given data, w and b computeAccuracy calculates accuracy
+    x, y = split_data(data)
+    length = len(data)
+    count = 0
+    for i in range(length):
+        f = np.dot(w, x[i]) + b
+        if f * y[i] > 0:
+            count += 1
+    accuracy = count/length * 100
+    return accuracy
+    
+
+def computeP(sigma):
+    P = np.zeros((m, m))
+    for i in range(m):
+        for j in range(m):
+            k = guassianKernel(Train_x[i], Train_x[j], sigma)
+            k = k*Train_y[i]*Train_y[j]
+            P[i][j] = k
+    return cpt.matrix(P)
+    
+
+def computeH(c):
+    H = np.zeros((2*m, 1))
+    for i in range(m):
+        H[i][0] = c
+    return cpt.matrix(H)
+
+def computeQ():
+    Q = np.zeros((m, 1))
+    for i in range(m):
+        Q[i][0] = -1
+    return cpt.matrix(Q)
+    
+def computeG():
+    G = np.zeros((2*m, m))
+    for i in range(m):
+        G[i][0] = 1
+    for i in range(m, 2*m):
+        G[i][0] = -1       
+    return cpt.matrix(G)
+
+def computeA():
+    A = np.zeros((1, m))
+    for i in range(m):
+        A[0][i] = Train_y[i]
+    
+
+G = computeG()
+A = computeA()
+q = computeQ()
+b = None
+
+
+finalWeight = []
+finalBias = 0
+bestAccuracy = 0
+bestC = None
+bestSigma = None
+
+for i in range(9):
+    for j in range(-1, 4):
+        c = 10 ** i
+        sigma = 10 ** j
+        h = computeH(c)
+        P = computeP(sigma)
+        #Quadratic Programming cvxopt solver
+        result = cpt.solvers.qp(P, q, G, h, A, b)
+        lst = np.ravel(result['x'])
+        #Calculate Weight
+        weight = []
+        for k1 in range(n):
+            k = 0
+            for k2 in range(m):
+                k = k + lst[k2]*Train_y[k2]*Train_x[k2][k1]
+                break
+            weight.append(k)
+        #Calculate bias(Intercept) using Complementary Slackness
+        supportVectorsCount = 0
+        bias = 0
+        for k3 in range(m):
+            if(lst[k3] > 0):
+                supportVectorsCount = supportVectorsCount + 1
+                bias = bias + (Train_y[k3] - np.dot(weight, Train_x[k3]))
+        #print(supportVectorsCount)
+        bias = bias/supportVectorsCount
+        acc = computeAccuracy(Train_data, weight, bias)
+        print('Accuracy on Training data set is',acc,' for value of C =',c,'and sigma =',sigma)
+        acc = computeAccuracy(Validation_data, weight, bias)
+        print('Accuracy on Validation data set is',acc,' for value of C =',c,'and sigma =',sigma)
+        if acc > bestAccuracy:
+            bestC = c
+            bestSigma = sigma
+            finalWeight = weight
+            finalBias = bias
+            bestAccuracy = acc
+
+#Tuning the value of c and sigma from Validation set
+print('The best value of c and sigma that are tuned from Validation set are',bestC,bestSigma)
+
+#Accuracy on testing set
+print('Accuracy on testing set is', computeAccuracy(Test_data, finalWeight, finalBias))
+
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    

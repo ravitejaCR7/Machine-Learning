@@ -1,0 +1,79 @@
+#KNN
+
+import pandas as pd
+import numpy as np
+Training_data = pd.read_csv('park_train.data',header = None)
+Test_data = pd.read_csv('park_test.data',header = None)
+Validation_data = pd.read_csv('park_validation.data',header = None)
+
+trainData_len = len(Training_data)
+n = len(Training_data.columns)   #number of columns
+
+Train_x = np.array(Training_data.iloc[:,1:23])
+Train_y = np.array(Training_data.iloc[:,0])
+
+
+def computeAccuracy(k, data):
+    data_x = np.array(data.iloc[:,1:23])
+    data_y = np.array(data.iloc[:,0])
+    dataLength = len(data)
+    i = 0
+    euclideanDistance = []
+    while i < dataLength:
+        j = 0
+        temp = {}
+        while j < trainData_len:
+            dist = np.linalg.norm(Train_x[j]-data_x[i])
+            temp[j] = dist
+            j = j + 1
+        euclideanDistance.append(temp)
+        i = i + 1
+    #sort the data values
+    accuracy = 0
+    i = 0
+    while i < dataLength:
+        sorted_by_value = sorted(euclideanDistance[i].items(), key=lambda kv: kv[1])
+        #print(sorted_by_value)
+        euclideanDistance[i] = sorted_by_value
+        j = 0
+        #select first k values and decide the target value
+        count = 0 #count of values having target = 1
+        while j < k:
+            point = list(sorted_by_value)[j][0]
+            #print('point ',point)
+            if Train_y[point] == 1:
+                count += 1
+            j = j + 1
+        if(count > k/2):
+            predicted = 1
+        else:
+            predicted = 0
+        if data_y[i] == predicted:
+            accuracy += 1
+        i = i + 1
+    accuracy = accuracy/dataLength * 100
+    return accuracy
+
+        
+print(Train_x[0][2])
+KNN = [1, 5, 11, 15, 21]
+bestAccuracy = 0
+bestK = []
+#acc - accuracy
+for k in KNN:
+    acc = computeAccuracy(k, Validation_data)
+    print('Accuracy on Validation data set is',acc,' for value of K =',k)
+    if(acc >= bestAccuracy):
+        if acc > bestAccuracy:
+            bestK = []
+        bestK.append(k)
+        bestAccuracy = acc
+            
+print(bestK)
+
+acc = computeAccuracy(bestK[0], Test_data)
+print('The best value K can take is', bestK)
+print('Accuracy on test data set is ',acc)
+        
+        
+    
